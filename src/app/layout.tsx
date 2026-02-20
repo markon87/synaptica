@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Synaptica",
-  description: "Biomedical research platform with TanStack Query and Table",
+  title: "Synaptica - Biomedical Research Platform",
+  description: "Advanced biomedical research platform powered by TanStack Query & Table. Streamline your research workflows with modern data visualization and analysis tools.",
 };
 
 export default function RootLayout({

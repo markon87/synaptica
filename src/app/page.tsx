@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import Logo from "@/components/Logo"
 
 export default function Home() {
   return (
@@ -9,12 +10,15 @@ export default function Home() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16">
         <div className="text-center mb-12">
+          <div className="flex justify-center mb-8">
+            <Logo width={200} height={50} />
+          </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Welcome to Synaptica
+            Advanced Biomedical Research Platform
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Your biomedical research platform powered by TanStack Query & Table. 
-            Streamline your research workflows with modern data visualization and analysis tools.
+            Streamline your research workflows with modern data visualization and analysis tools. 
+            Powered by TanStack Query & Table for professional data management.
           </p>
           
           <div className="flex gap-4 justify-center">

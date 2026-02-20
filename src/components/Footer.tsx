@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Logo from "@/components/Logo"
 
 export default function Footer() {
   return (
@@ -6,11 +7,8 @@ export default function Footer() {
       <div className="container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-4 gap-8">
           <div className="col-span-2">
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="h-8 w-8 rounded bg-blue-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
-              <span className="font-bold text-xl text-gray-900">Synaptica</span>
+            <div className="mb-4">
+              <Logo width={140} height={35} />
             </div>
             <p className="text-gray-600 text-sm max-w-md">
               Your biomedical research platform powered by TanStack Query & Table. 
