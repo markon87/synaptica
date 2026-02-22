@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
+interface PubMedLink {
+  type: 'PMC' | 'DOI' | 'Free Full-Text' | 'Publisher'
+  url: string
+  label: string
+}
+
 interface PubMedArticle {
   id: string
   title: string
@@ -22,6 +28,9 @@ interface PubMedArticle {
   pubDate: string
   abstract: string
   pmid: string
+  doi?: string
+  pmcId?: string
+  links: PubMedLink[]
 }
 
 const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]> => {
@@ -37,15 +46,33 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
     
     if (ids.length === 0) return []
     
-    // Then, fetch detailed info for those IDs
+    // Fetch detailed info for those IDs
     const detailsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(',')}&retmode=xml`
     const detailsResponse = await fetch(detailsUrl)
     const xmlText = await detailsResponse.text()
     
+    // Fetch link information for those IDs
+    const linksUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&id=${ids.join(',')}&retmode=xml`
+    const linksResponse = await fetch(linksUrl)
+    const linksXmlText = await linksResponse.text()
+    
     // Parse XML to extract article information
     const parser = new DOMParser()
     const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+    const linksDoc = parser.parseFromString(linksXmlText, 'text/xml')
     const articles = xmlDoc.querySelectorAll('PubmedArticle')
+    
+    // Create PMC ID mapping from links
+    const pmcMap = new Map<string, string>()
+    const linkSets = linksDoc.querySelectorAll('LinkSet')
+    linkSets.forEach(linkSet => {
+      const fromId = linkSet.querySelector('IdList Id')?.textContent
+      const toIds = linkSet.querySelectorAll('LinkSetDb[DbTo="pmc"] Link Id')
+      if (fromId && toIds.length > 0) {
+        const pmcId = toIds[0]?.textContent
+        if (pmcId) pmcMap.set(fromId, pmcId)
+      }
+    })
     
     return Array.from(articles).map((article, index) => {
       const titleElement = article.querySelector('ArticleTitle')
@@ -66,6 +93,34 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
       const pmidElement = article.querySelector('PMID')
       const pmid = pmidElement?.textContent || ids[index]
       
+      // Extract DOI
+      const doiElements = article.querySelectorAll('ELocationID[EIdType="doi"]')
+      const doi = doiElements[0]?.textContent || undefined
+      
+      // Get PMC ID from mapping
+      const pmcId = pmcMap.get(pmid)
+      
+      // Build links array
+      const links: PubMedLink[] = []
+      
+      // Add PMC link if available
+      if (pmcId) {
+        links.push({
+          type: 'PMC',
+          url: `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${pmcId}/`,
+          label: 'Free Full-Text (PMC)'
+        })
+      }
+      
+      // Add DOI link if available
+      if (doi) {
+        links.push({
+          type: 'DOI',
+          url: `https://doi.org/${doi}`,
+          label: 'Publisher (DOI)'
+        })
+      }
+      
       return {
         id: pmid,
         title,
@@ -74,6 +129,9 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
         pubDate,
         abstract: abstract.substring(0, 200) + (abstract.length > 200 ? '...' : ''),
         pmid,
+        doi,
+        pmcId,
+        links,
       }
     })
   } catch (error) {
@@ -137,9 +195,35 @@ const columns = [
       </a>
     ),
   }),
+  columnHelper.accessor("links", {
+    id: "links",
+    header: "Access",
+    cell: (info) => {
+      const links = info.getValue()
+      if (links.length === 0) {
+        return <div className="text-xs text-muted-foreground">Abstract Only</div>
+      }
+      
+      return (
+        <div className="flex flex-col gap-1">
+          {links.map((link, idx) => (
+            <a
+              key={idx}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md hover:bg-green-200 transition-colors inline-flex items-center gap-1"
+            >
+              {link.type === 'PMC' ? '🔓' : '📄'} {link.type}
+            </a>
+          ))}
+        </div>
+      )
+    },
+  }),
 ]
 
-export default function TestPage() {
+export default function SearchPubMedPage() {
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [queryTerm, setQueryTerm] = useState("")
@@ -176,10 +260,10 @@ export default function TestPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-2 text-center gradient-brand-text">
-        PubMed Research Explorer
+        Search PubMed
       </h1>
       <p className="text-center text-muted-foreground mb-8">
-        Search and explore the latest scientific publications
+        Find and explore the latest scientific publications
       </p>
       
       {/* Search Section */}
