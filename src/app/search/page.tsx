@@ -37,14 +37,69 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
   if (!searchTerm.trim()) return []
   
   try {
-    // First, search for article IDs
-    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmode=json&retmax=10&sort=pub_date`
+    // Preprocess search term for better PubMed compatibility
+    let processedTerm = searchTerm
+      .replace(/CAR T/gi, 'CAR-T')  // Fix CAR T cell interpretation
+      .replace(/T cell/gi, 'T-cell') // Fix T cell terms
+      .replace(/NK cell/gi, 'NK-cell') // Fix NK cell terms
+      .replace(/B cell/gi, 'B-cell')   // Fix B cell terms
+      .trim()
+    
+    console.log('Original term:', searchTerm)
+    console.log('Processed term:', processedTerm)
+    
+    // First attempt: Enhanced search with processed terms
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(processedTerm)}&retmode=json&retmax=20&sort=relevance`
     
     const searchResponse = await fetch(searchUrl)
     const searchData = await searchResponse.json()
-    const ids = searchData.esearchresult?.idlist || []
     
-    if (ids.length === 0) return []
+    console.log('PubMed search response:', searchData)
+    
+    let ids = searchData.esearchresult?.idlist || []
+    const count = searchData.esearchresult?.count || 0
+    
+    console.log(`Found ${count} total results, got ${ids.length} IDs`)
+    
+    // If no results with processed term, try fallback strategies
+    if (ids.length === 0) {
+      console.log('No results found, trying fallback strategies...')
+      
+      // Strategy 1: Try with individual key terms
+      const keyTerms = processedTerm
+        .split(' ')
+        .filter(term => term.length > 3 && !['and', 'or', 'the', 'for', 'with'].includes(term.toLowerCase()))
+        .slice(0, 5)
+        .join(' AND ')
+      
+      if (keyTerms) {
+        console.log('Trying key terms:', keyTerms)
+        const keyTermsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(keyTerms)}&retmode=json&retmax=20&sort=relevance`
+        const keyTermsResponse = await fetch(keyTermsUrl)
+        const keyTermsData = await keyTermsResponse.json()
+        
+        if (keyTermsData.esearchresult?.idlist?.length > 0) {
+          console.log('Found results with key terms search')
+          ids = keyTermsData.esearchresult.idlist
+        }
+      }
+    }
+    
+    if (ids.length === 0) {
+      console.log('No results found with any strategy')
+      return []
+    }
+    
+    return await fetchDetailsForIds(ids)
+    
+  } catch (error) {
+    console.error("Error fetching PubMed data:", error)
+    throw new Error("Failed to fetch PubMed articles")
+  }
+}
+
+const fetchDetailsForIds = async (ids: string[]): Promise<PubMedArticle[]> => {
+  try {
     
     // Fetch detailed info for those IDs
     const detailsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(',')}&retmode=xml`
@@ -275,7 +330,7 @@ export default function SearchPubMedPage() {
           <div className="flex gap-4">
             <Input
               type="text"
-              placeholder="Enter search terms (e.g., 'machine learning', 'COVID-19', 'cancer research')"
+              placeholder="Enter search terms (e.g., 'CAR-T therapy', 'HIV Nef protein', 'COVID-19 vaccine')"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -290,9 +345,22 @@ export default function SearchPubMedPage() {
             </Button>
           </div>
           {queryTerm && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Showing results for: <span className="font-medium text-primary">"{queryTerm}"</span>
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Showing results for: <span className="font-medium text-primary">"{queryTerm}"</span>
+              </p>
+              {data && data.length === 0 && (
+                <div className="p-3 border border-amber-200 bg-amber-50 rounded-md">
+                  <p className="text-sm text-amber-800 font-medium mb-2">No results found. Try:</p>
+                  <ul className="text-xs text-amber-700 space-y-1">
+                    <li>• Use "CAR-T" instead of "CAR T" for cell therapy searches</li>
+                    <li>• Try fewer, more specific keywords</li>
+                    <li>• Check spelling and use alternative terms</li>
+                    <li>• Remove very specific phrases and use key concepts</li>
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

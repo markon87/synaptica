@@ -23,10 +23,10 @@ export default function Home() {
           
           <div className="flex gap-4 justify-center">
             <Button asChild size="lg" className="gradient-brand text-white border-0">
-              <Link href="/test">View Demo</Link>
+              <Link href="/search">View Demo</Link>
             </Button>
             <Button variant="outline" size="lg" className="border-primary text-primary hover:bg-primary/10">
-              Get Started
+              <Link href="/features">Learn More</Link>
             </Button>
           </div>
         </div>

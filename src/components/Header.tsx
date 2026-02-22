@@ -41,7 +41,7 @@ export default function Header() {
           
           <nav className="hidden md:flex items-center space-x-8">
             <Link 
-              href="#features" 
+              href="/features" 
               className="text-muted-foreground hover:text-primary transition-colors font-medium"
             >
               Features
