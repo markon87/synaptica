@@ -30,7 +30,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/test" className="hover:text-primary transition-colors">
+                <Link href="/search" className="hover:text-primary transition-colors">
                   Search PubMed
                 </Link>
               </li>

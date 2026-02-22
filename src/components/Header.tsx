@@ -1,8 +1,29 @@
+"use client"
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import Logo, { LogoIcon } from "@/components/Logo"
+import { useAuth } from "@/components/providers/AuthProvider"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { User, LogOut, Settings, FolderOpen } from "lucide-react"
 
 export default function Header() {
+  const { user, loading, signOut } = useAuth()
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="container mx-auto px-4">
@@ -32,7 +53,7 @@ export default function Header() {
               How It Works
             </Link>
             <Link 
-              href="/test" 
+              href="/search" 
               className="text-muted-foreground hover:text-primary transition-colors font-medium"
             >
               Search PubMed
@@ -40,9 +61,51 @@ export default function Header() {
           </nav>
           
           <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm" className="border-primary text-primary hover:bg-primary/10">
-              Sign In
-            </Button>
+            {loading ? (
+              <div className="w-8 h-8 animate-pulse bg-muted rounded-full" />
+            ) : user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="relative h-8 w-8 rounded-full">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <User className="h-4 w-4" />
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end">
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user.email}</p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard" className="cursor-pointer">
+                      <FolderOpen className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/auth/signin">Sign In</Link>
+                </Button>
+                <Button variant="default" size="sm" asChild>
+                  <Link href="/auth/signup">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
