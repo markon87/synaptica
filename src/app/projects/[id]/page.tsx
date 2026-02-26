@@ -8,6 +8,7 @@ import { getProject } from "@/lib/supabase/projects"
 import { getProjectPapers, removePaperFromProject } from "@/lib/supabase/papers"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CSVImportModal } from "@/components/projects/CSVImportModal"
 import Link from "next/link"
 import { 
   ArrowLeft, 
@@ -18,7 +19,10 @@ import {
   FileText, 
   Plus,
   FolderOpen,
-  BookOpen
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Upload
 } from "lucide-react"
 
 export default function ProjectPage() {
@@ -26,6 +30,13 @@ export default function ProjectPage() {
   const router = useRouter()
   const params = useParams()
   const projectId = params.id as string
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const papersPerPage = 5
+  
+  // CSV Import modal state
+  const [isCSVImportOpen, setIsCSVImportOpen] = useState(false)
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: ["project", projectId, user?.id],
@@ -38,6 +49,19 @@ export default function ProjectPage() {
     queryFn: () => getProjectPapers(projectId, user!.id),
     enabled: !!user && !!projectId,
   })
+
+  // Pagination calculations
+  const totalPages = papers ? Math.ceil(papers.length / papersPerPage) : 0
+  const startIndex = (currentPage - 1) * papersPerPage
+  const endIndex = startIndex + papersPerPage
+  const currentPapers = papers ? papers.slice(startIndex, endIndex) : []
+
+  // Reset to page 1 when papers change
+  useEffect(() => {
+    if (papers && currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1)
+    }
+  }, [papers, currentPage, totalPages])
 
   // Redirect if not logged in
   useEffect(() => {
@@ -52,6 +76,10 @@ export default function ProjectPage() {
     try {
       await removePaperFromProject(project.id, paperId, user.id)
       refetchPapers()
+      // If current page becomes empty after removal, go to previous page
+      if (currentPapers.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1)
+      }
     } catch (err) {
       console.error('Error removing paper:', err)
       // Could show error toast here
@@ -212,12 +240,22 @@ export default function ProjectPage() {
                   <CardTitle>Saved Papers</CardTitle>
                   <CardDescription>Research papers saved to this project</CardDescription>
                 </div>
-                <Button asChild size="sm">
-                  <Link href="/search" className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Papers
-                  </Link>
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIsCSVImportOpen(true)}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import CSV
+                  </Button>
+                  <Button asChild size="sm">
+                    <Link href="/search" className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add Papers
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -226,61 +264,107 @@ export default function ProjectPage() {
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary"></div>
                 </div>
               ) : papers && papers.length > 0 ? (
-                <div className="space-y-4">
-                  {papers.map((paper) => (
-                    <div key={paper.id} className="border rounded-lg p-4 hover:bg-muted/20 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm leading-snug mb-2">
-                            {paper.title}
-                          </h4>
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            <p>
-                              <span className="font-medium">Authors:</span>{' '}
-                              {Array.isArray(paper.authors) ? paper.authors.slice(0, 3).join(', ') : 'No authors listed'}
-                              {Array.isArray(paper.authors) && paper.authors.length > 3 ? ' et al.' : ''}
-                            </p>
-                            <p>
-                              <span className="font-medium">Journal:</span> {paper.journal}
-                            </p>
-                            <p>
-                              <span className="font-medium">Published:</span> {paper.pub_date}
-                            </p>
-                            <p>
-                              <span className="font-medium">Saved:</span> {new Date(paper.saved_at).toLocaleDateString()}
-                            </p>
-                            {paper.notes && (
+                <>
+                  <div className="space-y-4">
+                    {currentPapers.map((paper) => (
+                      <div key={paper.id} className="border rounded-lg p-4 hover:bg-muted/20 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm leading-snug mb-2">
+                              {paper.title}
+                            </h4>
+                            <div className="text-xs text-muted-foreground space-y-1">
                               <p>
-                                <span className="font-medium">Notes:</span> {paper.notes}
+                                <span className="font-medium">Authors:</span>{' '}
+                                {Array.isArray(paper.authors) ? paper.authors.slice(0, 3).join(', ') : 'No authors listed'}
+                                {Array.isArray(paper.authors) && paper.authors.length > 3 ? ' et al.' : ''}
                               </p>
-                            )}
+                              <p>
+                                <span className="font-medium">Journal:</span> {paper.journal}
+                              </p>
+                              <p>
+                                <span className="font-medium">Published:</span> {paper.pub_date}
+                              </p>
+                              <p>
+                                <span className="font-medium">Saved:</span> {new Date(paper.saved_at).toLocaleDateString()}
+                              </p>
+                              {paper.notes && (
+                                <p>
+                                  <span className="font-medium">Notes:</span> {paper.notes}
+                                </p>
+                              )}
+                            </div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <a
+                                href={`https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:text-primary/80 underline"
+                              >
+                                View on PubMed
+                              </a>
+                            </div>
                           </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <a
-                              href={`https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}/`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:text-primary/80 underline"
+                          <div className="flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRemovePaper(paper.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                              title="Remove from project"
                             >
-                              View on PubMed
-                            </a>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRemovePaper(paper.id)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                            title="Remove from project"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-6 pt-6 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {startIndex + 1} to {Math.min(endIndex, papers.length)} of {papers.length} papers
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </Button>
+                        
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="min-w-[2rem]"
+                            >
+                              {pageNum}
+                            </Button>
+                          ))}
+                        </div>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
@@ -295,8 +379,12 @@ export default function ProjectPage() {
                         Search PubMed
                       </Link>
                     </Button>
-                    <Button variant="outline" disabled>
-                      Import Papers
+                    <Button 
+                      variant="outline"
+                      onClick={() => setIsCSVImportOpen(true)}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import CSV
                     </Button>
                   </div>
                 </div>
@@ -318,6 +406,14 @@ export default function ProjectPage() {
                   <Search className="h-4 w-4" />
                   Search & Add Papers
                 </Link>
+              </Button>
+              <Button 
+                className="w-full justify-start" 
+                variant="outline"
+                onClick={() => setIsCSVImportOpen(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV from PubMed
               </Button>
               <Button className="w-full justify-start" variant="outline" disabled>
                 <Edit3 className="h-4 w-4 mr-2" />
@@ -363,6 +459,17 @@ export default function ProjectPage() {
           </Card>
         </div>
       </div>
+
+      {/* CSV Import Modal */}
+      <CSVImportModal
+        isOpen={isCSVImportOpen}
+        onClose={() => setIsCSVImportOpen(false)}
+        projectId={projectId}
+        onImportComplete={() => {
+          refetchPapers()
+          setIsCSVImportOpen(false)
+        }}
+      />
     </div>
   )
 }

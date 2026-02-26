@@ -37,11 +37,17 @@ export async function savePaperToProject(
   }
 
   // Check if paper already exists
-  const { data: existingPaper } = await supabase
+  const { data: existingPaper, error: paperLookupError } = await supabase
     .from('papers')
     .select('id')
     .eq('pmid', paperData.pmid)
-    .single()
+    .maybeSingle()  // Use maybeSingle to avoid errors when no record found
+
+  // Only throw error if it's not a "no rows" error
+  if (paperLookupError && paperLookupError.code !== 'PGRST116') {
+    console.error('Error looking up existing paper:', paperLookupError)
+    // Continue anyway, we'll try to create the paper
+  }
 
   let paper: Paper
 
@@ -83,12 +89,18 @@ export async function savePaperToProject(
   }
 
   // Check if paper is already in this project
-  const { data: existingProjectPaper } = await supabase
+  const { data: existingProjectPaper, error: checkError } = await supabase
     .from('project_papers')
     .select('id')
     .eq('project_id', projectId)
     .eq('paper_id', paper.id)
-    .single()
+    .maybeSingle()  // Use maybeSingle instead of single to avoid errors when no record found
+
+  // Only throw error if it's not a "no rows" error
+  if (checkError && checkError.code !== 'PGRST116') {
+    console.error('Error checking for existing project paper:', checkError)
+    // Don't throw error, just log it and continue
+  }
 
   if (existingProjectPaper) {
     throw new Error('Paper is already saved to this project')

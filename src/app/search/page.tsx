@@ -404,6 +404,14 @@ export default function SearchPubMedPage() {
               {isLoading ? "Searching..." : "Search"}
             </Button>
           </div>
+          
+          {/* Advanced Search Tip */}
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              💡 <strong>Need advanced search features?</strong> Use PubMed's full search interface with filters, then export results as CSV and import them directly into your projects for bulk paper management.
+            </p>
+          </div>
+          
           {queryTerm && (
             <div className="mt-2 space-y-1">
               <p className="text-sm text-muted-foreground">
