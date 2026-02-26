@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, LogOut, Settings, FolderOpen } from "lucide-react"
+import { User, LogOut, Settings, FolderOpen, Folder } from "lucide-react"
 
 export default function Header() {
   const { user, loading, signOut } = useAuth()
@@ -40,24 +40,49 @@ export default function Header() {
           </div>
           
           <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-              href="/features" 
-              className="text-muted-foreground hover:text-primary transition-colors font-medium"
-            >
-              Features
-            </Link>
-            <Link 
-              href="#how-it-works" 
-              className="text-muted-foreground hover:text-accent transition-colors font-medium"
-            >
-              How It Works
-            </Link>
-            <Link 
-              href="/search" 
-              className="text-muted-foreground hover:text-primary transition-colors font-medium"
-            >
-              Search PubMed
-            </Link>
+            {user ? (
+              <>
+                <Link 
+                  href="/dashboard" 
+                  className="text-muted-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  href="/projects" 
+                  className="text-muted-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Projects
+                </Link>
+                <Link 
+                  href="/search" 
+                  className="text-muted-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Search
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link 
+                  href="/features" 
+                  className="text-muted-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Features
+                </Link>
+                <Link 
+                  href="#how-it-works" 
+                  className="text-muted-foreground hover:text-accent transition-colors font-medium"
+                >
+                  How It Works
+                </Link>
+                <Link 
+                  href="/search" 
+                  className="text-muted-foreground hover:text-primary transition-colors font-medium"
+                >
+                  Search PubMed
+                </Link>
+              </>
+            )}
           </nav>
           
           <div className="flex items-center space-x-4">
@@ -83,6 +108,12 @@ export default function Header() {
                     <Link href="/dashboard" className="cursor-pointer">
                       <FolderOpen className="mr-2 h-4 w-4" />
                       Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/projects" className="cursor-pointer">
+                      <Folder className="mr-2 h-4 w-4" />
+                      Projects
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

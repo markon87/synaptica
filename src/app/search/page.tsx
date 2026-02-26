@@ -15,6 +15,9 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SaveToProjectModal } from "@/components/projects/SaveToProjectModal"
+import { useAuth } from "@/components/providers/AuthProvider"
+import { PaperData } from "@/lib/supabase/papers"
 
 interface PubMedLink {
   type: 'PMC' | 'DOI' | 'Free Full-Text' | 'Publisher'
@@ -199,88 +202,8 @@ const fetchDetailsForIds = async (ids: string[]): Promise<PubMedArticle[]> => {
 
 const columnHelper = createColumnHelper<PubMedArticle>()
 
-const columns = [
-  columnHelper.accessor("title", {
-    id: "title",
-    header: "Title",
-    cell: (info) => (
-      <div className="max-w-md">
-        <div className="font-medium text-primary hover:text-primary/80 transition-colors">
-          {info.getValue()}
-        </div>
-      </div>
-    ),
-  }),
-  columnHelper.accessor("authors", {
-    id: "authors",
-    header: "Authors",
-    cell: (info) => {
-      const authors = info.getValue()
-      return (
-        <div className="text-sm text-muted-foreground">
-          {authors.length > 0 ? authors.join(", ") : "No authors listed"}
-          {authors.length === 3 ? " et al." : ""}
-        </div>
-      )
-    },
-  }),
-  columnHelper.accessor("journal", {
-    id: "journal",
-    header: "Journal",
-    cell: (info) => (
-      <div className="text-sm">{info.getValue()}</div>
-    ),
-  }),
-  columnHelper.accessor("pubDate", {
-    id: "pubDate",
-    header: "Year",
-    cell: (info) => (
-      <div className="text-sm text-center">{info.getValue()}</div>
-    ),
-  }),
-  columnHelper.accessor("pmid", {
-    id: "pmid",
-    header: "PMID",
-    cell: (info) => (
-      <a
-        href={`https://pubmed.ncbi.nlm.nih.gov/${info.getValue()}/`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-accent hover:text-accent/80 underline transition-colors"
-      >
-        {info.getValue()}
-      </a>
-    ),
-  }),
-  columnHelper.accessor("links", {
-    id: "links",
-    header: "Access",
-    cell: (info) => {
-      const links = info.getValue()
-      if (links.length === 0) {
-        return <div className="text-xs text-muted-foreground">Abstract Only</div>
-      }
-      
-      return (
-        <div className="flex flex-col gap-1">
-          {links.map((link, idx) => (
-            <a
-              key={idx}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md hover:bg-green-200 transition-colors inline-flex items-center gap-1"
-            >
-              {link.type === 'PMC' ? '🔓' : '📄'} {link.type}
-            </a>
-          ))}
-        </div>
-      )
-    },
-  }),
-]
-
 export default function SearchPubMedPage() {
+  const { user } = useAuth()
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [queryTerm, setQueryTerm] = useState("")
@@ -288,6 +211,133 @@ export default function SearchPubMedPage() {
     pageIndex: 0,
     pageSize: 10,
   })
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [selectedPaper, setSelectedPaper] = useState<PaperData | null>(null)
+
+  const handleSavePaper = (article: PubMedArticle) => {
+    const paperData: PaperData = {
+      pmid: article.pmid,
+      title: article.title,
+      authors: article.authors,
+      journal: article.journal,
+      pubDate: article.pubDate,
+      abstract: article.abstract
+    }
+    setSelectedPaper(paperData)
+    setSaveModalOpen(true)
+  }
+
+  const columns = [
+    columnHelper.accessor("title", {
+      id: "title",
+      header: "Title",
+      cell: (info) => (
+        <div className="max-w-md">
+          <div className="font-medium text-primary hover:text-primary/80 transition-colors">
+            {info.getValue()}
+          </div>
+        </div>
+      ),
+    }),
+    columnHelper.accessor("authors", {
+      id: "authors",
+      header: "Authors",
+      cell: (info) => {
+        const authors = info.getValue()
+        return (
+          <div className="text-sm text-muted-foreground">
+            {authors.length > 0 ? authors.join(", ") : "No authors listed"}
+            {authors.length === 3 ? " et al." : ""}
+          </div>
+        )
+      },
+    }),
+    columnHelper.accessor("journal", {
+      id: "journal",
+      header: "Journal",
+      cell: (info) => (
+        <div className="text-sm">{info.getValue()}</div>
+      ),
+    }),
+    columnHelper.accessor("pubDate", {
+      id: "pubDate",
+      header: "Year",
+      cell: (info) => (
+        <div className="text-sm text-center">{info.getValue()}</div>
+      ),
+    }),
+    columnHelper.accessor("pmid", {
+      id: "pmid",
+      header: "PMID",
+      cell: (info) => (
+        <a
+          href={`https://pubmed.ncbi.nlm.nih.gov/${info.getValue()}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:text-accent/80 underline transition-colors"
+        >
+          {info.getValue()}
+        </a>
+      ),
+    }),
+    columnHelper.accessor("links", {
+      id: "links",
+      header: "Access",
+      cell: (info) => {
+        const links = info.getValue()
+        if (links.length === 0) {
+          return <div className="text-xs text-muted-foreground">Abstract Only</div>
+        }
+        
+        return (
+          <div className="flex flex-col gap-1">
+            {links.map((link, idx) => (
+              <a
+                key={idx}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md hover:bg-green-200 transition-colors inline-flex items-center gap-1"
+              >
+                {link.type === 'PMC' ? '🔓' : '📄'} {link.type}
+              </a>
+            ))}
+          </div>
+        )
+      },
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "Actions",
+      cell: (info) => {
+        const article = info.row.original
+        return (
+          <div className="flex gap-1">
+            {user ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-7 px-2"
+                onClick={() => handleSavePaper(article)}
+              >
+                Save
+              </Button>
+            ) : (
+              <Button
+                size="sm" 
+                variant="outline"
+                className="text-xs h-7 px-2"
+                disabled
+                title="Sign in to save papers"
+              >
+                Save
+              </Button>
+            )}
+          </div>
+        )
+      },
+    }),
+  ]
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["pubmed", queryTerm],
@@ -504,6 +554,19 @@ export default function SearchPubMedPage() {
             <p className="text-muted-foreground">No publications found for "{queryTerm}". Try different search terms.</p>
           </div>
         </div>
+      )}
+
+      {/* Save to Project Modal */}
+      {selectedPaper && (
+        <SaveToProjectModal
+          open={saveModalOpen}
+          onOpenChange={setSaveModalOpen}
+          paperData={selectedPaper}
+          onSuccess={() => {
+            // Could show a success toast notification here
+            console.log('Paper saved successfully!')
+          }}
+        />
       )}
     </div>
   )
