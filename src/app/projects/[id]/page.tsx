@@ -9,6 +9,8 @@ import { getProjectPapers, removePaperFromProject } from "@/lib/supabase/papers"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CSVImportModal } from "@/components/projects/CSVImportModal"
+import { ProjectAnalytics } from "@/components/projects/ProjectAnalytics"
+import { FreeAccessPapers } from "@/components/projects/FreeAccessPapers"
 import Link from "next/link"
 import { 
   ArrowLeft, 
@@ -22,11 +24,13 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Upload
+  Upload,
+  BarChart3,
+  Sparkles
 } from "lucide-react"
 
 export default function ProjectPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const params = useParams()
   const projectId = params.id as string
@@ -37,6 +41,9 @@ export default function ProjectPage() {
   
   // CSV Import modal state
   const [isCSVImportOpen, setIsCSVImportOpen] = useState(false)
+  
+  // View state (papers, analytics, or ai)
+  const [activeView, setActiveView] = useState<'papers' | 'analytics' | 'ai'>('papers')
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: ["project", projectId, user?.id],
@@ -44,7 +51,7 @@ export default function ProjectPage() {
     enabled: !!user && !!projectId,
   })
 
-  const { data: papers, isLoading: papersLoading, refetch: refetchPapers } = useQuery({
+  const { data: papers, isLoading: papersLoading, refetch: refetchPapers, error: papersError } = useQuery({
     queryKey: ["project-papers", projectId, user?.id],
     queryFn: () => getProjectPapers(projectId, user!.id),
     enabled: !!user && !!projectId,
@@ -63,12 +70,12 @@ export default function ProjectPage() {
     }
   }, [papers, currentPage, totalPages])
 
-  // Redirect if not logged in
+  // Redirect if not logged in (but only after loading completes)
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/auth/signin')
     }
-  }, [user, router])
+  }, [user, loading, router])
 
   const handleRemovePaper = async (paperId: string) => {
     if (!user || !project) return
@@ -87,7 +94,7 @@ export default function ProjectPage() {
   }
 
   // Show loading state
-  if (isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-96">
@@ -231,33 +238,64 @@ export default function ProjectPage() {
 
       {/* Main Content */}
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Papers Section */}
+        {/* Papers/Analytics Section */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Saved Papers</CardTitle>
-                  <CardDescription>Research papers saved to this project</CardDescription>
+          {/* Tab Navigation */}
+          <div className="flex mb-6 border-b">
+            <Button
+              variant={activeView === 'papers' ? 'default' : 'ghost'}
+              className="rounded-b-none"
+              onClick={() => setActiveView('papers')}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Papers ({papers?.length || 0})
+            </Button>
+            <Button
+              variant={activeView === 'analytics' ? 'default' : 'ghost'}
+              className="rounded-b-none"
+              onClick={() => setActiveView('analytics')}
+              disabled={!papers?.length}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
+            </Button>
+            <Button
+              variant={activeView === 'ai' ? 'default' : 'ghost'}
+              className="rounded-b-none"
+              onClick={() => setActiveView('ai')}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              AI Analysis
+            </Button>
+          </div>
+
+          {/* Papers View */}
+          {activeView === 'papers' && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Saved Papers</CardTitle>
+                    <CardDescription>Research papers saved to this project</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsCSVImportOpen(true)}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import CSV
+                    </Button>
+                    <Button asChild size="sm">
+                      <Link href="/search" className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add Papers
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setIsCSVImportOpen(true)}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import CSV
-                  </Button>
-                  <Button asChild size="sm">
-                    <Link href="/search" className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Add Papers
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
+              </CardHeader>
             <CardContent>
               {papersLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -391,6 +429,26 @@ export default function ProjectPage() {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Analytics View */}
+          {activeView === 'analytics' && papers && (
+            <ProjectAnalytics 
+              papers={papers} 
+              projectName={project?.name || 'Project'} 
+            />
+          )}
+
+          {/* AI Analysis View */}
+          {activeView === 'ai' && (
+            <FreeAccessPapers 
+              projectId={projectId}
+              onAnalysisReady={(papers) => {
+                console.log('AI Analysis ready with', papers.length, 'papers')
+                // You can add more functionality here later
+              }}
+            />
+          )}
         </div>
 
         {/* Sidebar */}
@@ -414,6 +472,23 @@ export default function ProjectPage() {
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Import CSV from PubMed
+              </Button>
+              <Button 
+                className="w-full justify-start" 
+                variant={activeView === 'ai' ? 'default' : 'outline'}
+                onClick={() => setActiveView('ai')}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                AI Analysis
+              </Button>
+              <Button 
+                className="w-full justify-start" 
+                variant={activeView === 'analytics' ? 'default' : 'outline'}
+                onClick={() => setActiveView('analytics')}
+                disabled={!papers?.length}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Analytics
               </Button>
               <Button className="w-full justify-start" variant="outline" disabled>
                 <Edit3 className="h-4 w-4 mr-2" />

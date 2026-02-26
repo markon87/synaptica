@@ -13,6 +13,12 @@ export interface PaperData {
   journal: string
   pubDate: string
   abstract: string
+  pmcId?: string
+  doi?: string
+}
+
+export interface PaperWithAbstract extends PaperData {
+  // Interface simplified to focus only on abstract-based analysis
 }
 
 export async function savePaperToProject(
@@ -76,6 +82,8 @@ export async function savePaperToProject(
         journal: paperData.journal,
         pub_date: paperData.pubDate,
         abstract: paperData.abstract,
+        pmcid: paperData.pmcId || null,
+        doi: paperData.doi || null,
       })
       .select()
       .single()
@@ -127,63 +135,83 @@ export async function savePaperToProject(
 }
 
 export async function getProjectPapers(projectId: string, userId: string): Promise<(Paper & { notes?: string; tags?: string[]; saved_at: string })[]> {
-  const supabase = createClient()
+  try {
+    const supabase = createClient()
 
-  // Verify user owns the project
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', userId)
-    .single()
+    // Verify user owns the project
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single()
 
-  if (!project) {
-    throw new Error('Project not found or access denied')
-  }
-
-  const { data, error } = await supabase
-    .from('project_papers')
-    .select(`
-      notes,
-      tags,
-      created_at,
-      papers (
-        id,
-        pmid,
-        title,
-        authors,
-        journal,
-        pub_date,
-        abstract,
-        created_at
-      )
-    `)
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    console.error('Error fetching project papers:', error)
-    throw new Error('Failed to fetch project papers')
-  }
-
-  return (data || []).map(item => {
-    // Handle the case where papers might be an array or object
-    const paper = Array.isArray(item.papers) ? item.papers[0] : item.papers
-    
-    return {
-      id: paper.id,
-      pmid: paper.pmid,
-      title: paper.title,
-      authors: paper.authors,
-      journal: paper.journal,
-      pub_date: paper.pub_date,
-      abstract: paper.abstract,
-      created_at: paper.created_at,
-      notes: item.notes,
-      tags: item.tags as string[] | undefined,
-      saved_at: item.created_at,
+    if (projectError) {
+      console.error('Error verifying project ownership:', projectError)
+      throw new Error(`Project verification failed: ${projectError.message}`)
     }
-  })
+
+    if (!project) {
+      throw new Error('Project not found or access denied')
+    }
+
+    const { data, error } = await supabase
+      .from('project_papers')
+      .select(`
+        notes,
+        tags,
+        created_at,
+        papers (
+          id,
+          pmid,
+          title,
+          authors,
+          journal,
+          pub_date,
+          abstract,
+          pmcid,
+          doi,
+          created_at
+        )
+      `)
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching project papers:', error)
+      throw new Error(`Failed to fetch project papers: ${error.message}`)
+    }
+
+    const result = (data || []).map(item => {
+      const paper = Array.isArray(item.papers) ? item.papers[0] : item.papers
+      
+      if (!paper) {
+        return null
+      }
+      
+      return {
+        id: paper.id,
+        pmid: paper.pmid,
+        title: paper.title,
+        authors: paper.authors,
+        journal: paper.journal,
+        pub_date: paper.pub_date,
+        abstract: paper.abstract,
+        pmcid: paper.pmcid,
+        doi: paper.doi,
+        created_at: paper.created_at,
+        notes: item.notes,
+        tags: item.tags as string[] | undefined,
+        saved_at: item.created_at,
+      }
+    }).filter((item): item is NonNullable<typeof item> => item !== null) // Proper type guard
+    
+    console.log('Debug - Final result:', result)
+    return result
+  } catch (error) {
+    console.error('Error in getProjectPapers:', error)
+    throw error
+  }
 }
 
 export async function removePaperFromProject(
@@ -305,3 +333,66 @@ export async function getPapersSavedByUser(
 
   return result
 }
+
+// Function removed - no longer checking full text availability since we only use abstracts
+
+// Full text fetching functionality removed - using abstracts only
+
+// Get papers with abstracts for AI analysis
+export async function getPapersForAIAnalysis(projectId: string, userId: string) {
+  const supabase = createClient()
+  
+  const { data: papers, error } = await supabase
+    .from('project_papers')
+    .select(`
+      id,
+      notes,
+      tags,
+      created_at,
+      papers!inner (
+        id,
+        pmid,
+        title,
+        authors,
+        journal,
+        pub_date,
+        abstract,
+        pmcid,
+        doi,
+        created_at
+      ),
+      projects!inner (
+        id,
+        user_id
+      )
+    `)
+    .eq('project_id', projectId)
+    .eq('projects.user_id', userId)
+    .not('papers.abstract', 'is', null)
+    .neq('papers.abstract', '')
+  
+  if (error) {
+    throw new Error(`Failed to get papers for AI analysis: ${error.message}`)
+  }
+  
+  return papers?.map(row => {
+    const paper = Array.isArray(row.papers) ? row.papers[0] : row.papers
+    return {
+      id: paper.id,
+      pmid: paper.pmid,
+      title: paper.title,
+      authors: paper.authors,
+      journal: paper.journal,
+      pub_date: paper.pub_date,
+      abstract: paper.abstract,
+      pmcid: paper.pmcid,
+      doi: paper.doi,
+      created_at: paper.created_at,
+      notes: row.notes,
+      tags: row.tags as string[] | undefined,
+      saved_at: row.created_at,
+    }
+  }) || []
+}
+
+// Function removed - no longer using full text, abstracts only

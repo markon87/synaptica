@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS papers (
   journal TEXT NOT NULL,
   pub_date TEXT NOT NULL,
   abstract TEXT NOT NULL DEFAULT '',
+  pmcid TEXT,
+  doi TEXT,
+  full_text TEXT,
+  full_text_source TEXT,
+  full_text_status TEXT DEFAULT 'none' CHECK (full_text_status IN ('none', 'available', 'fetching', 'completed', 'failed')),
+  sections JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
