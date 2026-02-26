@@ -8,6 +8,8 @@ import {
   useReactTable,
   getSortedRowModel,
   SortingState,
+  getPaginationRowModel,
+  PaginationState,
 } from "@tanstack/react-table"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -49,7 +51,7 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
     console.log('Processed term:', processedTerm)
     
     // First attempt: Enhanced search with processed terms
-    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(processedTerm)}&retmode=json&retmax=20&sort=relevance`
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(processedTerm)}&retmode=json&retmax=100&sort=relevance`
     
     const searchResponse = await fetch(searchUrl)
     const searchData = await searchResponse.json()
@@ -74,7 +76,7 @@ const fetchPubMedArticles = async (searchTerm: string): Promise<PubMedArticle[]>
       
       if (keyTerms) {
         console.log('Trying key terms:', keyTerms)
-        const keyTermsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(keyTerms)}&retmode=json&retmax=20&sort=relevance`
+        const keyTermsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(keyTerms)}&retmode=json&retmax=100&sort=relevance`
         const keyTermsResponse = await fetch(keyTermsUrl)
         const keyTermsData = await keyTermsResponse.json()
         
@@ -282,6 +284,10 @@ export default function SearchPubMedPage() {
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [queryTerm, setQueryTerm] = useState("")
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["pubmed", queryTerm],
@@ -294,15 +300,19 @@ export default function SearchPubMedPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     state: {
       sorting,
+      pagination,
     },
   })
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
       setQueryTerm(searchTerm.trim())
+      setPagination({ pageIndex: 0, pageSize: 10 }) // Reset to first page
     }
   }
 
@@ -440,10 +450,47 @@ export default function SearchPubMedPage() {
             </table>
           </div>
           
-          <div className="mt-6 text-center">
+          {/* Pagination Controls */}
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                data.length
+              )}{' '}
+              of {data.length} results
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-muted-foreground">
+                  Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                </span>
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+          
+          <div className="mt-4 text-center">
             <p className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-primary">{data.length}</span> latest publications
-              {data.length === 10 && " (limited to 10 results)"}
+              Total <span className="font-medium text-primary">{data.length}</span> publications found
             </p>
           </div>
         </>
