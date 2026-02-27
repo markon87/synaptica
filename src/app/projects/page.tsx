@@ -81,7 +81,7 @@ export default function ProjectsPage() {
             <FolderPlus className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
             <p className="text-muted-foreground mb-6 max-w-md">
-              Create your first research project to organize papers, notes, and findings in one place.
+              Create your first research project to organize papers, tags, and findings in one place.
             </p>
             <Button asChild size="lg">
               <Link href="/projects/new" className="flex items-center gap-2">

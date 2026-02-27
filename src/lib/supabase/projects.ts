@@ -108,3 +108,29 @@ export async function deleteProject(projectId: string, userId: string): Promise<
     throw new Error('Failed to delete project')
   }
 }
+
+// Get saved AI analysis for a project 
+export async function getProjectAnalysis(projectId: string, userId: string): Promise<{
+  analysis: string | null
+  chartData: any
+  analysisDate: string | null
+} | null> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('projects')
+    .select('ai_analysis, ai_chart_data, ai_analysis_date')
+    .eq('id', projectId)
+    .eq('user_id', userId) // Ensure user owns the project
+    .single()
+
+  if (error || !data) {
+    return null
+  }
+
+  return {
+    analysis: data.ai_analysis,
+    chartData: data.ai_chart_data,
+    analysisDate: data.ai_analysis_date
+  }
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { createClient } from '@supabase/supabase-js'
 
 // Initialize OpenAI with your API key
 const openai = new OpenAI({
@@ -8,15 +9,26 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { papers, analysisType = 'comprehensive' } = await request.json()
+    const { papers, projectId, analysisType = 'comprehensive' } = await request.json()
 
     if (!papers || !Array.isArray(papers) || papers.length === 0) {
       return NextResponse.json({ error: 'No papers provided' }, { status: 400 })
     }
 
-    // Build the analysis prompt
-    const prompt = buildAnalysisPrompt(papers, analysisType)
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
+    }
 
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
+    }
+
+    // Handle large datasets by batching papers if necessary
+    const MAX_PAPERS_PER_REQUEST = 20 // Limit to avoid token limits
+    const papersToAnalyze = papers.slice(0, MAX_PAPERS_PER_REQUEST)
+
+    // Build the analysis prompt
+    const prompt = buildAnalysisPrompt(papersToAnalyze, analysisType)
     const completion = await openai.chat.completions.create({
       model: "gpt-4o", // Using GPT-4 for better analysis
       messages: [
@@ -32,7 +44,7 @@ export async function POST(request: NextRequest) {
       max_tokens: 4000,
       temperature: 0.3, // Lower temperature for more consistent, analytical responses
     })
-
+    
     const rawResponse = completion.choices[0]?.message?.content
 
     if (!rawResponse) {
@@ -42,17 +54,39 @@ export async function POST(request: NextRequest) {
     // Parse the response to extract chart data and analysis
     const { chartData, analysis } = parseAnalysisResponse(rawResponse)
 
-    return NextResponse.json({
+    // Save analysis results to database using service role client
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { error: saveError } = await supabaseAdmin
+      .from('projects')
+      .update({
+        ai_analysis: analysis,
+        ai_chart_data: chartData,
+        ai_analysis_date: new Date().toISOString()
+      })
+      .eq('id', projectId)
+
+    if (saveError) {
+      console.error('Failed to save analysis results:', saveError)
+      // Continue anyway - return results even if save failed
+    }
+
+    const result = {
       analysis,
       chartData,
-      paperCount: papers.length,
+      paperCount: papersToAnalyze.length,
+      totalPapers: papers.length,
+      limited: papers.length > MAX_PAPERS_PER_REQUEST,
       model: "gpt-4o",
       timestamp: new Date().toISOString()
-    })
+    }
+    
+    return NextResponse.json(result)
 
   } catch (error: any) {
-    console.error('Error in paper analysis:', error)
-    
     if (error.code === 'insufficient_quota') {
       return NextResponse.json({ 
         error: 'OpenAI API quota exceeded. Please check your billing.' 
@@ -65,8 +99,14 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
+    if (error.code === 'model_not_found' || error.message?.includes('model')) {
+      return NextResponse.json({ 
+        error: 'OpenAI model not available. Please try again.' 
+      }, { status: 400 })
+    }
+
     return NextResponse.json({ 
-      error: 'Failed to analyze papers. Please try again.' 
+      error: `Failed to analyze papers: ${error.message}` 
     }, { status: 500 })
   }
 }
@@ -111,62 +151,63 @@ function parseAnalysisResponse(rawResponse: string): { chartData: any, analysis:
 }
 
 function buildAnalysisPrompt(papers: any[], analysisType: string): string {
-  const paperSummaries = papers.map((paper, index) => `
+  // Truncate abstracts to reduce token usage
+  const MAX_ABSTRACT_LENGTH = 400 // Characters, not tokens
+  
+  const paperSummaries = papers.map((paper, index) => {
+    let abstract = paper.abstract || 'No abstract available'
+    if (abstract.length > MAX_ABSTRACT_LENGTH) {
+      abstract = abstract.substring(0, MAX_ABSTRACT_LENGTH) + '...'
+    }
+    
+    return `
 **Paper ${index + 1}:**
 - **Title**: ${paper.title}
-- **Authors**: ${paper.authors.join(', ')}
+- **Authors**: ${Array.isArray(paper.authors) ? paper.authors.join(', ') : paper.authors || 'Unknown'}
 - **Journal**: ${paper.journal} (${paper.pub_date ? new Date(paper.pub_date).getFullYear() : 'N/A'})
 - **PMID**: ${paper.pmid}
-- **Abstract**: ${paper.abstract}
-${paper.notes ? `- **Notes**: ${paper.notes}` : ''}
+- **Abstract**: ${abstract}
 ${paper.tags && paper.tags.length > 0 ? `- **Tags**: ${paper.tags.join(', ')}` : ''}
-`).join('\n---\n')
+`}).join('\n---\n')
 
-  return `You are a research analyst specializing in biomedical literature. Analyze the following ${papers.length} research papers and provide both structured data for visualization AND a comprehensive written analysis.
+  // Shortened prompt to reduce token usage
+  return `Analyze ${papers.length} research papers. Provide structured data + analysis.
 
-IMPORTANT: Start your response with structured data in this EXACT JSON format (must be valid JSON):
+IMPORTANT: Start with JSON in EXACT format:
 {
   "chartData": {
-    "publicationYears": [{"year": "2020", "count": 5}, {"year": "2021", "count": 8}],
-    "studyTypes": [{"type": "Clinical Trial", "count": 12}, {"type": "Systematic Review", "count": 5}, {"type": "Observational Study", "count": 8}],
-    "researchThemes": [{"theme": "Cancer Treatment", "count": 15}, {"theme": "Drug Discovery", "count": 8}],
-    "sampleSizes": [{"range": "< 100", "count": 10}, {"range": "100-500", "count": 8}, {"range": "500-1000", "count": 5}, {"range": "> 1000", "count": 3}],
-    "qualityScores": [{"quality": "High Quality", "count": 18}, {"quality": "Medium Quality", "count": 7}, {"quality": "Lower Quality", "count": 2}],
-    "geographicRegions": [{"region": "North America", "count": 12}, {"region": "Europe", "count": 8}, {"region": "Asia", "count": 6}]
+    "publicationYears": [{"year": "2020", "count": 5}],
+    "studyTypes": [{"type": "Clinical Trial", "count": 12}],
+    "researchThemes": [{"theme": "Cancer Treatment", "count": 15}],
+    "sampleSizes": [{"range": "< 100", "count": 10}],
+    "qualityScores": [{"quality": "High Quality", "count": 18}],
+    "geographicRegions": [{"region": "North America", "count": 12}]
   }
 }
 ---ANALYSIS---
 
-After the JSON, provide your detailed written analysis covering:
+Then provide analysis covering:
 
-## 1. 🎯 **Thematic Analysis**
-- Identify the main research themes and patterns
-- Group papers by research focus areas
-- Highlight emerging trends and methodological approaches
+<h2>🎯 <strong>Thematic Analysis</strong></h2>
+<p>Main themes, patterns, and research focus areas.</p>
 
-## 2. 🔍 **Research Gaps & Opportunities** 
-- Point out understudied areas or missing perspectives
-- Identify methodological limitations across studies
-- Suggest areas that need more investigation
+<h2>🔍 <strong>Research Gaps & Opportunities</strong></h2> 
+<p>Understudied areas and methodological limitations.</p>
 
-## 3. 📊 **Key Findings & Insights**
-- Summarize the most important discoveries and conclusions
-- Note any conflicting results or controversies
-- Highlight breakthrough findings or novel approaches
+<h2>📊 <strong>Key Findings & Insights</strong></h2>
+<p>Important discoveries, controversies, and breakthroughs.</p>
 
-## 4. 🚀 **Future Research Directions**
-- Suggest logical next steps based on current findings
-- Identify promising research questions to pursue
-- Recommend methodological improvements or innovations
+<h2>🚀 <strong>Future Research Directions</strong></h2>
+<p>Next steps and promising research questions.</p>
 
-## 5. 📈 **Research Landscape Overview**
-- Assess the maturity of the research field
-- Note temporal trends and evolution of approaches
-- Identify leading research groups or institutions
+<h2>📈 <strong>Research Landscape Overview</strong></h2>
+<p>Field maturity, trends, and leading institutions.</p>
 
-Here are the papers:
+Use HTML formatting throughout your response. Use <h2> for main sections, <h3> for subsections, <p> for paragraphs, <ul> and <li> for bullet points, and <strong> for emphasis.
+
+Papers:
 
 ${paperSummaries}
 
-Remember: Start with the JSON data, then provide the detailed analysis after "---ANALYSIS---"`
+Start with JSON, then analysis after "---ANALYSIS---"`
 }

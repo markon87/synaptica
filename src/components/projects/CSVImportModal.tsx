@@ -195,7 +195,22 @@ export function CSVImportModal({ isOpen, onClose, projectId, onImportComplete }:
           authors: authors,
           journal: journal.trim(),
           pubDate: pubDate,  // Changed from pub_date to pubDate to match PaperData interface
-          abstract: (row.Abstract || '').trim()
+          abstract: '' // Will be fetched from PubMed
+        }
+
+        // Fetch abstract from PubMed API
+        try {
+          const pubmedResponse = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${pmid}&retmode=json`)
+          if (pubmedResponse.ok) {
+            const data = await pubmedResponse.json()
+            const paperInfo = data.result?.[pmid]
+            if (paperInfo?.abstract) {
+              paperData.abstract = paperInfo.abstract
+            }
+          }
+        } catch (abstractError) {
+          console.log(`Could not fetch abstract for PMID ${pmid}:`, abstractError)
+          // Continue with empty abstract - paper will still be saved
         }
 
         await savePaperToProject(projectId, paperData, user.id)  // Fixed parameter order

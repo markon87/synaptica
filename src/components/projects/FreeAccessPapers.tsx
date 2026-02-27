@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/providers/AuthProvider"
 import { getPapersForAIAnalysis } from "@/lib/supabase/papers"
+import { getProjectAnalysis } from "@/lib/supabase/projects"
 import { 
   CheckCircle, 
   Loader2, 
@@ -53,7 +54,6 @@ interface PaperForAI {
   journal: string
   pub_date: string
   abstract: string
-  notes?: string
   tags?: string[]
 }
 
@@ -71,12 +71,32 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
   const [chartData, setChartData] = useState<any>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [fetchingAbstracts, setFetchingAbstracts] = useState(false)
+  const [analysisDate, setAnalysisDate] = useState<string | null>(null)
+  const [hasExistingAnalysis, setHasExistingAnalysis] = useState(false)
 
   useEffect(() => {
     if (user && projectId) {
       loadPapersForAnalysis()
+      loadSavedAnalysis()
     }
   }, [user, projectId])
+
+  const loadSavedAnalysis = async () => {
+    if (!user) return
+    
+    try {
+      const savedAnalysis = await getProjectAnalysis(projectId, user.id)
+      if (savedAnalysis && savedAnalysis.analysis) {
+        setAiAnalysis(savedAnalysis.analysis)
+        setChartData(savedAnalysis.chartData)
+        setAnalysisDate(savedAnalysis.analysisDate)
+        setHasExistingAnalysis(true)
+      }
+    } catch (error) {
+      console.error('Error loading saved analysis:', error)
+    }
+  }
 
   const loadPapersForAnalysis = async () => {
     try {
@@ -126,6 +146,7 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
         },
         body: JSON.stringify({
           papers: papers,
+          projectId: projectId,
           analysisType: 'comprehensive'
         })
       })
@@ -138,11 +159,55 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
 
       setAiAnalysis(data.analysis)
       setChartData(data.chartData)
+      setAnalysisDate(new Date().toISOString())
+      setHasExistingAnalysis(true)
     } catch (error: any) {
       console.error('Error running AI analysis:', error)
       setAnalysisError(error.message || 'Failed to analyze papers')
     } finally {
       setAnalyzing(false)
+    }
+  }
+
+  const handleFetchAbstracts = async () => {
+    if (!user) return
+    
+    try {
+      setFetchingAbstracts(true)
+      
+      const response = await fetch('/api/fetch-abstracts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: projectId
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch abstracts')
+      }
+      
+      if (result.updated > 0) {
+        // Add a small delay to ensure database commits are complete
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        // Reload papers after fetching abstracts
+        await loadPapersForAnalysis()
+        alert(`Successfully fetched ${result.updated} abstracts!${result.failed > 0 ? ` ${result.failed} papers failed to fetch abstracts.` : ''}`)
+      } else if (result.failed > 0) {
+        alert(`Failed to fetch abstracts for ${result.failed} papers. They may not be available in PubMed.`)
+      } else {
+        alert('No papers without abstracts found.')
+      }
+    } catch (error: any) {
+      console.error('Error fetching abstracts:', error)
+      alert(`Failed to fetch abstracts: ${error.message}`)
+    } finally {
+      setFetchingAbstracts(false)
     }
   }
 
@@ -203,23 +268,51 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="mb-4">
-              <Button
-                onClick={runAIAnalysis}
-                disabled={analyzing || papers.length === 0}
-                className="flex items-center gap-2"
-              >
-                {analyzing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="h-4 w-4" />
-                    Analyze with AI ({papers.length} papers)
-                  </>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={runAIAnalysis}
+                  disabled={analyzing || papers.length === 0}
+                  className="flex items-center gap-2"
+                >
+                  {analyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4" />
+                      {hasExistingAnalysis ? 'Re-run Analysis' : 'Analyze with AI'} ({papers.length} papers)
+                    </>
+                  )}
+                </Button>
+                
+                {hasExistingAnalysis && analysisDate && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-1 px-2 py-1">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                    Last analyzed: {new Date(analysisDate).toLocaleDateString()}
+                  </div>
                 )}
-              </Button>
+                
+                <Button
+                  onClick={handleFetchAbstracts}
+                  disabled={fetchingAbstracts}
+                  variant="outline"
+                  size="sm"
+                >
+                  {fetchingAbstracts ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                      Fetching...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-3 w-3 mr-2" />
+                      Fetch Missing Abstracts
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             
             {papers.slice(0, 5).map(paper => (
@@ -479,9 +572,10 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
             {aiAnalysis && (
               <div className="bg-gray-50 border rounded-lg p-4">
                 <div className="prose prose-sm max-w-none">
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
-                    {aiAnalysis}
-                  </pre>
+                  <div 
+                    className="text-sm leading-relaxed font-sans [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:text-gray-900 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:first:mt-0 [&>h3]:text-base [&>h3]:font-medium [&>h3]:text-gray-800 [&>h3]:mt-4 [&>h3]:mb-2 [&>p]:mb-3 [&>ul]:ml-4 [&>ul]:mb-3 [&>li]:mb-1"
+                    dangerouslySetInnerHTML={{ __html: aiAnalysis }}
+                  />
                 </div>
               </div>
             )}
@@ -550,10 +644,44 @@ export function FreeAccessPapers({ projectId, onAnalysisReady }: PrepareAIAnalys
 
       {papers.length === 0 && (
         <Card>
-          <CardContent className="text-center py-8">
-            <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
-            <p className="text-muted-foreground mb-2">No papers found in this project</p>
-            <p className="text-xs text-muted-foreground">Add some papers to start AI analysis</p>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              No Papers Ready for Analysis
+            </CardTitle>
+            <CardDescription>
+              Papers need abstracts for AI analysis. You can:
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-muted-foreground mb-4">
+              • Add papers from search that include abstracts<br/>
+              • Import CSV files (abstracts will be fetched automatically)<br/>
+              • Fetch abstracts for existing papers without them
+            </div>
+            
+            <Button 
+              onClick={handleFetchAbstracts}
+              disabled={fetchingAbstracts}
+              variant="outline"
+              className="w-full"
+            >
+              {fetchingAbstracts ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Fetching Abstracts from PubMed...
+                </>
+              ) : (
+                <>
+                  <Brain className="h-4 w-4 mr-2" />
+                  Fetch Missing Abstracts
+                </>
+              )}
+            </Button>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              This will fetch abstracts from PubMed for any papers in this project that don't have them
+            </p>
           </CardContent>
         </Card>
       )}

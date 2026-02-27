@@ -44,6 +44,9 @@ export interface Database {
           user_id: string
           name: string
           description: string | null
+          ai_analysis: string | null
+          ai_chart_data: Json | null
+          ai_analysis_date: string | null
           created_at: string
           updated_at: string
         }
@@ -52,6 +55,9 @@ export interface Database {
           user_id: string
           name: string
           description?: string | null
+          ai_analysis?: string | null
+          ai_chart_data?: Json | null
+          ai_analysis_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -60,6 +66,9 @@ export interface Database {
           user_id?: string
           name?: string
           description?: string | null
+          ai_analysis?: string | null
+          ai_chart_data?: Json | null
+          ai_analysis_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -105,7 +114,6 @@ export interface Database {
           id: string
           project_id: string
           paper_id: string
-          notes: string | null
           tags: Json | null
           created_at: string
         }
@@ -113,7 +121,6 @@ export interface Database {
           id?: string
           project_id: string
           paper_id: string
-          notes?: string | null
           tags?: Json | null
           created_at?: string
         }
@@ -121,7 +128,6 @@ export interface Database {
           id?: string
           project_id?: string
           paper_id?: string
-          notes?: string | null
           tags?: Json | null
           created_at?: string
         }

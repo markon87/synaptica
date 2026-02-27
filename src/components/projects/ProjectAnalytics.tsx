@@ -17,7 +17,6 @@ interface PaperAnalytic {
   pub_date: string
   abstract: string
   created_at: string
-  notes?: string
   tags?: string[]
   saved_at: string
 }

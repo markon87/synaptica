@@ -42,8 +42,8 @@ export default function ProjectPage() {
   // CSV Import modal state
   const [isCSVImportOpen, setIsCSVImportOpen] = useState(false)
   
-  // View state (papers, analytics, or ai)
-  const [activeView, setActiveView] = useState<'papers' | 'analytics' | 'ai'>('papers')
+  // View state (papers or ai)
+  const [activeView, setActiveView] = useState<'papers' | 'ai'>('papers')
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: ["project", projectId, user?.id],
@@ -189,57 +189,47 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Project Stats */}
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
+      {/* Quick Actions */}
+      <div className="mb-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <FileText className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{papers?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Saved Papers</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <BookOpen className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">0</p>
-                <p className="text-xs text-muted-foreground">Notes Added</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-100">
-                <Calendar className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {Math.ceil((new Date().getTime() - new Date(project.created_at).getTime()) / (1000 * 60 * 60 * 24))}
-                </p>
-                <p className="text-xs text-muted-foreground">Days Active</p>
-              </div>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href="/search" className="flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Search & Add Papers
+              </Link>
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setIsCSVImportOpen(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV from PubMed
+            </Button>
+            <Button 
+              variant={activeView === 'ai' ? 'default' : 'outline'}
+              onClick={() => setActiveView('ai')}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              AI Analysis
+            </Button>
+            <Button variant="outline" disabled>
+              <Edit3 className="h-4 w-4 mr-2" />
+              Edit Project Details
+            </Button>
+            <Button variant="outline" disabled>
+              <FileText className="h-4 w-4 mr-2" />
+              Export Project
+            </Button>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Content */}
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Papers/Analytics Section */}
-        <div className="lg:col-span-2">
+      <div>
           {/* Tab Navigation */}
           <div className="flex mb-6 border-b">
             <Button
@@ -248,16 +238,7 @@ export default function ProjectPage() {
               onClick={() => setActiveView('papers')}
             >
               <FileText className="h-4 w-4 mr-2" />
-              Papers ({papers?.length || 0})
-            </Button>
-            <Button
-              variant={activeView === 'analytics' ? 'default' : 'ghost'}
-              className="rounded-b-none"
-              onClick={() => setActiveView('analytics')}
-              disabled={!papers?.length}
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Analytics
+              Papers & Analytics ({papers?.length || 0})
             </Button>
             <Button
               variant={activeView === 'ai' ? 'default' : 'ghost'}
@@ -271,31 +252,41 @@ export default function ProjectPage() {
 
           {/* Papers View */}
           {activeView === 'papers' && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Saved Papers</CardTitle>
-                    <CardDescription>Research papers saved to this project</CardDescription>
+            <div className="space-y-6">
+              {/* Analytics Section */}
+              {papers && papers.length > 0 && (
+                <ProjectAnalytics 
+                  papers={papers} 
+                  projectName={project?.name || 'Project'} 
+                />
+              )}
+              
+              {/* Papers List */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Saved Papers</CardTitle>
+                      <CardDescription>Research papers saved to this project</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setIsCSVImportOpen(true)}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import CSV
+                      </Button>
+                      <Button asChild size="sm">
+                        <Link href="/search" className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          Add Papers
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setIsCSVImportOpen(true)}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import CSV
-                    </Button>
-                    <Button asChild size="sm">
-                      <Link href="/search" className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
-                        Add Papers
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
+                </CardHeader>
             <CardContent>
               {papersLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -326,11 +317,6 @@ export default function ProjectPage() {
                               <p>
                                 <span className="font-medium">Saved:</span> {new Date(paper.saved_at).toLocaleDateString()}
                               </p>
-                              {paper.notes && (
-                                <p>
-                                  <span className="font-medium">Notes:</span> {paper.notes}
-                                </p>
-                              )}
                             </div>
                             <div className="mt-2 flex items-center gap-2">
                               <a
@@ -429,14 +415,7 @@ export default function ProjectPage() {
               )}
             </CardContent>
           </Card>
-          )}
-
-          {/* Analytics View */}
-          {activeView === 'analytics' && papers && (
-            <ProjectAnalytics 
-              papers={papers} 
-              projectName={project?.name || 'Project'} 
-            />
+            </div>
           )}
 
           {/* AI Analysis View */}
@@ -449,90 +428,6 @@ export default function ProjectPage() {
               }}
             />
           )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button asChild className="w-full justify-start" variant="outline">
-                <Link href="/search" className="flex items-center gap-2">
-                  <Search className="h-4 w-4" />
-                  Search & Add Papers
-                </Link>
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => setIsCSVImportOpen(true)}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Import CSV from PubMed
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant={activeView === 'ai' ? 'default' : 'outline'}
-                onClick={() => setActiveView('ai')}
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                AI Analysis
-              </Button>
-              <Button 
-                className="w-full justify-start" 
-                variant={activeView === 'analytics' ? 'default' : 'outline'}
-                onClick={() => setActiveView('analytics')}
-                disabled={!papers?.length}
-              >
-                <BarChart3 className="h-4 w-4 mr-2" />
-                View Analytics
-              </Button>
-              <Button className="w-full justify-start" variant="outline" disabled>
-                <Edit3 className="h-4 w-4 mr-2" />
-                Edit Project Details
-              </Button>
-              <Button className="w-full justify-start" variant="outline" disabled>
-                <FileText className="h-4 w-4 mr-2" />
-                Export Project
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Project Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Project Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-6 text-muted-foreground">
-                <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No notes yet</p>
-                <p className="text-xs mt-1">Add notes to track your research progress</p>
-                <Button variant="outline" size="sm" className="mt-3" disabled>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Note
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-6 text-muted-foreground">
-                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No activity yet</p>
-                <p className="text-xs mt-1">Activity will appear as you work on your project</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
       {/* CSV Import Modal */}

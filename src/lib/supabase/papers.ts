@@ -25,7 +25,6 @@ export async function savePaperToProject(
   projectId: string,
   paperData: PaperData,
   userId: string,
-  notes?: string,
   tags?: string[]
 ): Promise<{ paper: Paper; projectPaper: ProjectPaper }> {
   const supabase = createClient()
@@ -81,9 +80,9 @@ export async function savePaperToProject(
         authors: paperData.authors as any, // Cast to Json type
         journal: paperData.journal,
         pub_date: paperData.pubDate,
-        abstract: paperData.abstract,
+        abstract: paperData.abstract || '', // Ensure abstract is included
         pmcid: paperData.pmcId || null,
-        doi: paperData.doi || null,
+        doi: paperData.doi || null
       })
       .select()
       .single()
@@ -120,7 +119,6 @@ export async function savePaperToProject(
     .insert({
       project_id: projectId,
       paper_id: paper.id,
-      notes: notes || null,
       tags: tags || null,
     })
     .select()
@@ -134,7 +132,7 @@ export async function savePaperToProject(
   return { paper, projectPaper }
 }
 
-export async function getProjectPapers(projectId: string, userId: string): Promise<(Paper & { notes?: string; tags?: string[]; saved_at: string })[]> {
+export async function getProjectPapers(projectId: string, userId: string): Promise<(Paper & { tags?: string[]; saved_at: string })[]> {
   try {
     const supabase = createClient()
 
@@ -158,7 +156,6 @@ export async function getProjectPapers(projectId: string, userId: string): Promi
     const { data, error } = await supabase
       .from('project_papers')
       .select(`
-        notes,
         tags,
         created_at,
         papers (
@@ -200,7 +197,6 @@ export async function getProjectPapers(projectId: string, userId: string): Promi
         pmcid: paper.pmcid,
         doi: paper.doi,
         created_at: paper.created_at,
-        notes: item.notes,
         tags: item.tags as string[] | undefined,
         saved_at: item.created_at,
       }
@@ -342,11 +338,12 @@ export async function getPapersSavedByUser(
 export async function getPapersForAIAnalysis(projectId: string, userId: string) {
   const supabase = createClient()
   
+  console.log(`getPapersForAIAnalysis: project ${projectId}, user ${userId}`)
+  
   const { data: papers, error } = await supabase
     .from('project_papers')
     .select(`
       id,
-      notes,
       tags,
       created_at,
       papers!inner (
@@ -368,14 +365,19 @@ export async function getPapersForAIAnalysis(projectId: string, userId: string) 
     `)
     .eq('project_id', projectId)
     .eq('projects.user_id', userId)
-    .not('papers.abstract', 'is', null)
-    .neq('papers.abstract', '')
   
   if (error) {
     throw new Error(`Failed to get papers for AI analysis: ${error.message}`)
   }
   
-  return papers?.map(row => {
+  // Filter papers that have abstracts (client-side filtering)
+  const papersWithAbstracts = papers?.filter(row => {
+    const paper = Array.isArray(row.papers) ? row.papers[0] : row.papers
+    const hasAbstract = paper.abstract && paper.abstract.trim().length > 0
+    return hasAbstract
+  }) || []
+  
+  return papersWithAbstracts.map(row => {
     const paper = Array.isArray(row.papers) ? row.papers[0] : row.papers
     return {
       id: paper.id,
@@ -388,7 +390,6 @@ export async function getPapersForAIAnalysis(projectId: string, userId: string) 
       pmcid: paper.pmcid,
       doi: paper.doi,
       created_at: paper.created_at,
-      notes: row.notes,
       tags: row.tags as string[] | undefined,
       saved_at: row.created_at,
     }
