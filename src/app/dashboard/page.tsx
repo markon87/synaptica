@@ -168,6 +168,7 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
+  // Force fresh build for Vercel deployment
   return (
     <Suspense fallback={
       <div className="container mx-auto px-4 py-8">
