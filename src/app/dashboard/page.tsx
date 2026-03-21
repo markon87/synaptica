@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { useAuth } from "@/components/providers/AuthProvider"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -10,7 +11,7 @@ import { FolderPlus, Search, FileText, BarChart3, Folder, Calendar } from "lucid
 import { useQuery } from "@tanstack/react-query"
 import { getUserProjects } from "@/lib/supabase/projects"
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -163,5 +164,19 @@ export default function DashboardPage() {
       </div>
 
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-muted border-t-primary"></div>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }
