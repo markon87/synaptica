@@ -1,6 +1,7 @@
 import SignInForm from "@/components/auth/SignInForm"
 import Logo from "@/components/Logo"
 import Link from "next/link"
+import { Suspense } from "react"
 
 export default function SignInPage() {
   return (
@@ -12,7 +13,9 @@ export default function SignInPage() {
           </Link>
         </div>
         
-        <SignInForm />
+        <Suspense fallback={<div>Loading...</div>}>
+          <SignInForm />
+        </Suspense>
         
         <div className="text-center text-sm text-muted-foreground">
           <Link href="/" className="hover:text-primary transition-colors">

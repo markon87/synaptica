@@ -24,31 +24,3 @@ export const createClient = async (request?: NextRequest) => {
 
   return { supabase, response: NextResponse.next() }
 }
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
-    }
-  )
-
-  return { supabase, response }
-}
