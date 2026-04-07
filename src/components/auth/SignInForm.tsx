@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/components/providers/AuthProvider"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 
 export default function SignInForm() {
@@ -16,6 +16,21 @@ export default function SignInForm() {
   
   const { signIn, signInWithGoogle } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Check for OAuth errors from URL params
+    const oauthError = searchParams.get('error')
+    if (oauthError) {
+      const errorMessages = {
+        oauth_error: 'Google sign-in failed. Please try again.',
+        no_code: 'Authorization was cancelled. Please try again.',
+        session_error: 'Failed to create session. Please try again.',
+        unexpected_error: 'An unexpected error occurred. Please try again.'
+      }
+      setError(errorMessages[oauthError as keyof typeof errorMessages] || 'Sign-in failed. Please try again.')
+    }
+  }, [searchParams])
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()

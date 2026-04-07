@@ -5,7 +5,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 export async function POST(request: NextRequest) {
   try {
     const { projectId } = await request.json()
-    const { supabase } = createClient(request)
+    const { supabase } = await createClient()
     
     // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
